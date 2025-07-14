@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTube Tags and HashTag Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9f9;
+      padding: 20px;
+      margin: 0;
+    }
+    h1 { text-align: center; margin-bottom: 20px; }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      max-width: 1400px;
+      margin: auto;
+    }
+    .column {
+      background: #fff;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      flex: 1 1 500px;
+      min-width: 300px;
+    }
+    h2 {
+      font-size: 16px;
+      margin: 0 0 10px;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      font-size: 14px;
+      padding: 8px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-family: inherit;
+    }
+    .row, .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 6px 12px;
+      background: #eee;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover { background: #ddd; }
+    .tag-box {
+      border: 1px solid #ccc;
+      padding: 8px;
+      border-radius: 5px;
+      background: #f5f5f5;
+      max-height: 150px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+    .tag {
+      background: #cfe9ff;
+      padding: 4px 10px;
+      border-radius: 15px;
+      margin: 3px;
+      display: inline-block;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    #finalTagsContainer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      min-height: 42px;
+    }
+    .chip {
+      color: white;
+      padding: 6px 10px;
+      border-radius: 15px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip.tag-good { background: #28a745; }
+    .chip.tag-medium { background: #ffc107; color: #000; }
+    .chip.tag-poor { background: #dc3545; }
+    .chip .close-btn {
+      background: #fff;
+      color: #000;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      text-align: center;
+      font-size: 14px;
+      line-height: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #finalTagsInput {
+      flex-grow: 1;
+      border: none;
+      font-size: 14px;
+      min-width: 100px;
+      outline: none;
+    }
+    .char-count {
+      font-size: 12px;
+      color: #555;
+      text-align: right;
+    }
+    .char-count.red { color: red; font-weight: bold; }
+    .output-box textarea {
+      font-size: 13px;
+      height: 60px;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📌 YouTube Tags and HashTag Generator</h1>
+  <div class="container">
+    <div class="column">
+      <h2>🔍 Keywords</h2>
+      <textarea id="keywords" rows="5" placeholder="One keyword per line..."></textarea>
+      <div class="row">
+        <input id="prefix" placeholder="Prefix (optional)">
+        <input id="suffix" placeholder="Suffix (optional)">
+      </div>
+      <div class="btn-row">
+        <button onclick="generateTags()">Generate</button>
+        <button onclick="clearAll()">Clear</button>
+      </div>
+      <h2>🏷️ Suggestions</h2>
+      <div class="tag-box" id="tags"></div>
+      <div class="btn-row">
+        <button onclick="addAllTags()">➕ Add All</button>
+        <button onclick="optimizeTags()">⚡ Optimize Tags</button>
+      </div>
+    </div>
+
+    <div class="column">
+      <h2>✅ Final Tags</h2>
+      <div id="finalTagsContainer">
+        <input id="finalTagsInput" placeholder="Type and press Enter" />
+      </div>
+      <div class="char-count" id="charCount">0 / 500</div>
+
+      <h2>📦 Export</h2>
+      <div class="output-box">
+        <textarea id="exportTags" readonly></textarea>
+        <button onclick="copyTags()">📋 Copy Tags</button>
+        <button onclick="exportToTxt()">💾 Export .txt</button>
+      </div>
+      <h2>📢 Hashtags</h2>
+      <div class="output-box">
+        <textarea id="hashtags" readonly></textarea>
+        <button onclick="copyHashtags()">📋 Copy Hashtags</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tagSet = new Set();
+    const lowValueTags = ['video','youtube','viral','trending','short','new','watch'];
+
+    const finalTagsInput = document.getElementById('finalTagsInput');
+    finalTagsInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = finalTagsInput.value.trim().replace(/,+$/, '');
+        if (val && !tagSet.has(val)) {
+          tagSet.add(val);
+          finalTagsInput.value = '';
+          saveTags();
+          renderTags();
+        }
+      }
+    });
+
+    function createTagChip(tag) {
+      const chip = document.createElement('div');
+      const scoreClass = rateTagQuality(tag);
+      chip.className = 'chip ' + scoreClass;
+      chip.innerHTML = `<span>${tag}</span><div class="close-btn" onclick="removeTag('${tag}')">×</div>`;
+      return chip;
+    }
+
+    function rateTagQuality(tag) {
+      const t = tag.toLowerCase();
+      if (lowValueTags.includes(t) || t.length < 3 || t.length > 25) return 'tag-poor';
+      if (t.length < 6 || /[^a-z0-9 ]/i.test(t)) return 'tag-medium';
+      return 'tag-good';
+    }
+
+    function renderTags() {
+      const container = document.getElementById('finalTagsContainer');
+      container.querySelectorAll('.chip').forEach(el => el.remove());
+      tagSet.forEach(tag => container.insertBefore(createTagChip(tag), finalTagsInput));
+      updateMetrics();
+    }
+
+    function removeTag(tag) {
+      tagSet.delete(tag);
+      saveTags();
+      renderTags();
+    }
+
+    function saveTags() {
+      localStorage.setItem('savedTags', JSON.stringify([...tagSet]));
+    }
+
+    function loadTags() {
+      const saved = JSON.parse(localStorage.getItem('savedTags') || '[]');
+      saved.forEach(tag => tagSet.add(tag));
+    }
+
+    function generateTags() {
+      const keywords = document.getElementById('keywords').value.trim().split('\n').filter(Boolean);
+      const prefix = document.getElementById('prefix').value.trim();
+      const suffix = document.getElementById('suffix').value.trim();
+      const tagsBox = document.getElementById('tags');
+      tagsBox.innerHTML = '';
+
+      keywords.forEach(k => {
+        fetchSuggestions(k, suggestions => {
+          suggestions.forEach(tag => {
+            const finalTag = `${prefix}${tag}${suffix}`;
+            const el = document.createElement('span');
+            el.className = 'tag';
+            el.textContent = finalTag;
+            el.onclick = () => addTag(finalTag);
+            tagsBox.appendChild(el);
+          });
+        });
+      });
+    }
+
+    function fetchSuggestions(q, cb) {
+      const cbName = 'cb_' + Math.floor(Math.random() * 100000);
+      window[cbName] = function(data) {
+        delete window[cbName];
+        document.body.removeChild(script);
+        cb(data[1]);
+      };
+      const script = document.createElement('script');
+      script.src = `https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${encodeURIComponent(q)}&callback=${cbName}`;
+      document.body.appendChild(script);
+    }
+
+    function addTag(tag) {
+      if (!tagSet.has(tag)) {
+        tagSet.add(tag);
+        saveTags();
+        renderTags();
+      }
+    }
+
+    function addAllTags() {
+      document.querySelectorAll('#tags .tag').forEach(tagEl => addTag(tagEl.textContent));
+    }
+
+    function optimizeTags() {
+      [...tagSet].forEach(tag => {
+        if (rateTagQuality(tag) === 'tag-poor') tagSet.delete(tag);
+      });
+      saveTags();
+      renderTags();
+    }
+
+    function updateMetrics() {
+      const tags = Array.from(tagSet);
+      const tagString = tags.join(', ');
+      const length = tagString.length;
+      const charCount = document.getElementById('charCount');
+      charCount.textContent = `${length} / 500`;
+      charCount.classList.toggle('red', length > 500);
+      document.getElementById('exportTags').value = tagString;
+      document.getElementById('hashtags').value = tags.map(t => '#' + t.replace(/\s+/g, '')).join(' ');
+    }
+
+    function copyTags() {
+      navigator.clipboard.writeText(document.getElementById('exportTags').value);
+    }
+
+    function copyHashtags() {
+      navigator.clipboard.writeText(document.getElementById('hashtags').value);
+    }
+
+    function exportToTxt() {
+      const blob = new Blob([document.getElementById('exportTags').value], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'tags.txt';
+      link.click();
+    }
+
+    function clearAll() {
+      ['keywords','prefix','suffix','titleBox','descBox'].forEach(id => document.getElementById(id).value = '');
+      tagSet.clear();
+      localStorage.removeItem('savedTags');
+      document.getElementById('tags').innerHTML = '';
+      renderTags();
+    }
+
+    loadTags();
+    renderTags();
+  </script>
+</body>
+</html>
